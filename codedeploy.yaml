@@ -29,18 +29,13 @@ Resources:
       Ec2TagFilters:
         - Key: Environment
           Value: !Ref StagingInstanceTag
-          Type: KEY_AND_VALUE # Re-including Type as it's valid for Ec2TagFilter
-      # REMOVED: DeploymentStyle property, as it's not needed for basic in-place deployment without a load balancer
+          Type: KEY_AND_VALUE
       AutoRollbackConfiguration:
         Enabled: true
         Events:
           - DEPLOYMENT_FAILURE
-          - DEPLOYMENT_STOP_ON_ALARM # Rollback on CloudWatch alarm (not configured in demo)
+          - DEPLOYMENT_STOP_ON_ALARM
           - DEPLOYMENT_STOP_ON_REQUEST
-      # Optional: Add CloudWatch Alarms for monitoring
-      # AlarmConfiguration:
-      #   Enabled: false
-      #   Alarms: []
 
   # CodeDeploy Deployment Group for Production
   ProductionDeploymentGroup:
@@ -53,11 +48,32 @@ Resources:
       Ec2TagFilters:
         - Key: Environment
           Value: !Ref ProductionInstanceTag
-          Type: KEY_AND_VALUE # Re-including Type as it's valid for Ec2TagFilter
-      # REMOVED: DeploymentStyle property, as it's not needed for basic in-place deployment without a load balancer
+          Type: KEY_AND_VALUE
       AutoRollbackConfiguration:
         Enabled: true
         Events:
           - DEPLOYMENT_FAILURE
           - DEPLOYMENT_STOP_ON_ALARM
           - DEPLOYMENT_STOP_ON_REQUEST
+
+Outputs:
+  # Export the Name of the CodeDeploy Application
+  CodeDeployApplicationName:
+    Description: Name of the CodeDeploy Application
+    Value: !Ref NodeJsAppCodeDeployApplication # This references the logical ID
+    Export:
+      Name: DevSecOpsNodeJsApplicationName # Unique export name
+
+  # Export the Name of the Staging Deployment Group
+  CodeDeployStagingDeploymentGroupName:
+    Description: Name of the Staging CodeDeploy Deployment Group
+    Value: !Ref StagingDeploymentGroup # This references the logical ID
+    Export:
+      Name: DevSecOpsStagingDeploymentGroupName # Unique export name
+
+  # Export the Name of the Production Deployment Group
+  CodeDeployProductionDeploymentGroupName:
+    Description: Name of the Production CodeDeploy Deployment Group
+    Value: !Ref ProductionDeploymentGroup # This references the logical ID
+    Export:
+      Name: DevSecOpsProductionDeploymentGroupName # Unique export name
