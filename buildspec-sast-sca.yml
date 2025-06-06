@@ -1,0 +1,42 @@
+# CodeBuild Buildspec for Simulated SAST/SCA Scan for Node.js
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18 # Use a recent Node.js version
+    commands:
+      - echo "--- Installing Node.js dependencies for SAST/SCA simulation ---"
+      - npm install # Install project dependencies
+      - echo "--- Installing SAST/SCA tools (Simulated) ---"
+      # In a real scenario, you'd install SAST/SCA tools here, e.g.,
+      # - npm install -g snyk
+      # - npm install -g eslint
+      # - pip install bandit (if Python involved)
+
+  pre_build:
+    commands:
+      - echo "--- Running Pre-Build Security Checks (Simulated) ---"
+      - echo "Simulating Static Application Security Testing (SAST):"
+      - echo "  - Running mock static code analysis on Node.js files..."
+      # Mock SAST check: search for 'eval' (dangerous function)
+      - if grep -r "eval(" . --include=*.js; then echo "    [WARNING] 'eval()' function found. Review for security risks. (Simulated)"; else echo "    [INFO] No 'eval()' found. (Simulated)"; fi
+      - echo "Simulating Software Composition Analysis (SCA):"
+      - echo "  - Running 'npm audit' (mock):"
+      # Real npm audit would run here:
+      # - npm audit || true # Use || true to prevent build failure on warnings
+      - echo "    No critical vulnerabilities found in mock npm audit for demo."
+      - echo "Security scan simulation complete."
+
+  build:
+    commands:
+      - echo "--- Build Phase (Security Scan) ---"
+      - echo "No build artifacts generated in this security scan phase."
+
+  post_build:
+    commands:
+      - echo "--- Post-Build Phase (Security Scan) ---"
+      - echo "Simulating report generation/upload to a security dashboard."
+
+artifacts:
+  type: NO_ARTIFACTS

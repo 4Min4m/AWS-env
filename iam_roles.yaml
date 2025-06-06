@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2.
+
+Resources:
+  # IAM Role for AWS CodePipeline
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DevSecOpsCodePipelineServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For pipeline artifacts
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess # To trigger CodeDeploy
+      Path: /
+
+  # IAM Role for AWS CodeBuild
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DevSecOpsCodeBuildServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For artifacts
+      Path: /
+
+  # IAM Role for AWS CodeDeploy
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DevSecOpsCodeDeployServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRole # Standard managed policy for CodeDeploy service role
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess # To get deployment artifacts from S3
+      Path: /
+
+  # IAM Role for EC2 Instances (for CodeDeploy Agent)
+  EC2InstanceProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DevSecOpsEC2CodeDeployRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy # Allows EC2 to interact with CodeDeploy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # Allows SSM agent (useful for troubleshooting)
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy # For CloudWatch logs from EC2
+      Path: /
+
+  # IAM Instance Profile for EC2 Instances
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: DevSecOpsEC2CodeDeployProfile
+      Roles:
+        - !Ref EC2InstanceProfileRole
+
+  # SNS Topic for Manual Approval notifications (Optional but recommended for real pipelines)
+  DevSecOpsApprovalNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: DevSecOpsApprovalNotification
+      DisplayName: DevSecOps Approval Notifications

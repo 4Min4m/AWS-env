@@ -1,0 +1,28 @@
+# CodeBuild Buildspec for Build and Test
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18 # Use a recent Node.js version
+    commands:
+      - echo "--- Install Phase (Build & Test) ---"
+      - npm install # Install Node.js dependencies
+
+  build:
+    commands:
+      - echo "--- Build Phase (Build & Test) ---"
+      - echo "Running build script (if any, for this demo Node.js app is simple compilation)."
+      # For more complex Node.js apps, this is where 'npm run build' or webpack would run.
+      - echo "Build complete."
+
+  post_build:
+    commands:
+      - echo "--- Test Phase (Build & Test) ---"
+      - npm test # Run tests defined in package.json (will just echo for this demo)
+      - echo "Tests complete."
+
+artifacts:
+  files:
+    - '**/*' # Package all files for deployment
+  base-directory: './' # Specify base directory for artifacts

@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 Instances for Staging and Production with CodeDeploy agent.
+
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    Description: Latest Amazon Linux 2 AMI ID from Systems Manager Parameter Store.
+  KeyPairName:
+    Type: String
+    Description: The name of an existing EC2 KeyPair to enable SSH access to the instances.
+    Default: 'my-ssh-key' # <--- IMPORTANT: Replace with your actual key pair name or create one if you don't have one
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: The ID of the VPC where the instances will be launched.
+    ConstraintDescription: Must be the ID of an existing VPC.
+  SubnetId:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: The ID of the subnet where the instances will be launched.
+    ConstraintDescription: Must be the ID of an existing public subnet within the selected VPC.
+
+Resources:
+  # Security Group to allow HTTP and SSH access
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DevSecOpsWebServerSG
+      GroupDescription: Enable HTTP and SSH access
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80 # HTTP
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22 # SSH
+          ToPort: 22
+          CidrIp: 0.0.0.0/0 # Allow SSH from anywhere (restrict in prod)
+
+  # EC2 Instance for Staging Environment
+  StagingEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro # Free Tier eligible
+      KeyName: !Ref DevSecOps Pipeline
+      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfile # Reference to IAM profile from iam_roles.yaml
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref WebServerSecurityGroup
+          SubnetId: !Ref SubnetId
+      Tags:
+        - Key: Name
+          Value: DevSecOps-Staging-Instance
+        - Key: Environment
+          Value: Staging
+        - Key: Project
+          Value: DevSecOpsDemo
+      UserData: !Base64 |
+        #!/bin/bash
+        sudo yum update -y
+        sudo yum install -y ruby wget
+        cd /home/ec2-user
+        wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+        chmod +x ./install
+        sudo ./install auto
+        sudo service codedeploy-agent start
+        echo "CodeDeploy Agent installed and started."
+        # Install Node.js and npm
+        curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
+        sudo yum install -y nodejs
+
+  # EC2 Instance for Production Environment
+  ProductionEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro # Free Tier eligible
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfile # Reference to IAM profile from iam_roles.yaml
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref WebServerSecurityGroup
+          SubnetId: !Ref SubnetId
+      Tags:
+        - Key: Name
+          Value: DevSecOps-Production-Instance
+        - Key: Environment
+          Value: Production
+        - Key: Project
+          Value: DevSecOpsDemo
+      UserData: !Base64 |
+        #!/bin/bash
+        sudo yum update -y
+        sudo yum install -y ruby wget
+        cd /home/ec2-user
+        wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+        chmod +x ./install
+        sudo ./install auto
+        sudo service codedeploy-agent start
+        echo "CodeDeploy Agent installed and started."
+        # Install Node.js and npm
+        curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
+        sudo yum install -y nodejs
+
+Outputs:
+  StagingInstancePublicIp:
+    Description: Public IP of the Staging EC2 Instance
+    Value: !GetAtt StagingEC2Instance.PublicIp
+    Export:
+      Name: DevSecOpsStagingInstancePublicIp
+
+  ProductionInstancePublicIp:
+    Description: Public IP of the Production EC2 Instance
+    Value: !GetAtt ProductionEC2Instance.PublicIp
+    Export:
+      Name: DevSecOpsProductionInstancePublicIp
+
+  WebServerSecurityGroup:
+    Description: Security Group ID for web servers
+    Value: !Ref WebServerSecurityGroup
+    Export:
+      Name: DevSecOpsWebServerSecurityGroup

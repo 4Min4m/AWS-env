@@ -1,0 +1,36 @@
+version: 0.0
+os: linux # Operating system of the target instances
+files:
+  - source: / # Root of the artifact (our Node.js app)
+    destination: /home/ec2-user/devsecops-app # Destination on the EC2 instance
+
+hooks:
+  ApplicationStop:
+    # Stop the Node.js application if it's already running
+    - location: scripts/stop_application.sh
+      timeout: 60
+      runas: ec2-user # Run as the ec2-user
+
+  BeforeInstall:
+    # Clean up previous deployment, if any
+    - location: scripts/before_install.sh
+      timeout: 60
+      runas: ec2-user
+
+  AfterInstall:
+    # Install Node.js dependencies after the application files are copied
+    - location: scripts/after_install.sh
+      timeout: 120
+      runas: ec2-user
+
+  ApplicationStart:
+    # Start the Node.js application
+    - location: scripts/start_application.sh
+      timeout: 60
+      runas: ec2-user
+
+  ValidateService:
+    # Validate that the application started correctly
+    - location: scripts/validate_service.sh
+      timeout: 60
+      runas: ec2-user
