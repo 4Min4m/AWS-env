@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2. (V7 - Exporting All Required Role/Topic ARNs)
+Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2. (V10 - CodePipeline CodeBuild StartBuild Permission)
 
 Resources:
   # IAM Role for AWS CodePipeline
@@ -19,6 +19,22 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
         - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
+      Policies:
+        - PolicyName: CodeStarConnectionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codestar-connections:UseConnection
+                Resource: arn:aws:codeconnections:us-east-1:864981715490:connection/743c9fe4-1a25-46e1-b068-daf51b807075
+              # NEW: Permissions for CodePipeline to start CodeBuild projects
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                Resource:
+                  - arn:aws:codebuild:us-east-1:864981715490:project/DevSecOpsSecurityScanProject
+                  - arn:aws:codebuild:us-east-1:864981715490:project/DevSecOpsNodeJsAppBuildProject
       Path: /
 
   # IAM Role for AWS CodeBuild
@@ -52,7 +68,7 @@ Resources:
               Service: codedeploy.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess # Keeping AdministratorAccess for now
+        - arn:aws:iam::aws:policy/AdministratorAccess
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
       Path: /
 
@@ -69,7 +85,7 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess # Keeping AdministratorAccess for now
+        - arn:aws:iam::aws:policy/AdministratorAccess
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Path: /
@@ -95,14 +111,14 @@ Outputs:
     Description: ARN of the CodePipeline Service Role
     Value: !GetAtt CodePipelineServiceRole.Arn
     Export:
-      Name: DevSecOpsCodePipelineServiceRoleV2Arn # <--- NEW EXPORT
+      Name: DevSecOpsCodePipelineServiceRoleV2Arn
 
   # Export the ARN of the CodeBuild Service Role
   CodeBuildServiceRoleArn:
     Description: ARN of the CodeBuild Service Role
     Value: !GetAtt CodeBuildServiceRole.Arn
     Export:
-      Name: DevSecOpsCodeBuildServiceRoleV2Arn # <--- NEW EXPORT
+      Name: DevSecOpsCodeBuildServiceRoleV2Arn
 
   # Export the ARN of the CodeDeploy Service Role
   CodeDeployServiceRoleArn:
@@ -128,6 +144,6 @@ Outputs:
   # Export the ARN of the SNS Topic
   DevSecOpsApprovalNotificationTopicArn:
     Description: ARN of the SNS Topic for approval notifications
-    Value: !Ref DevSecOpsApprovalNotificationTopic # Use !Ref for the ARN of an SNS Topic
+    Value: !Ref DevSecOpsApprovalNotificationTopic
     Export:
-      Name: DevSecOpsApprovalNotificationTopicV2Arn # <--- NEW EXPORT
+      Name: DevSecOpsApprovalNotificationTopicV2Arn

@@ -27,11 +27,6 @@ Resources:
       BucketName: !Sub "codepipeline-artifacts-${AWS::Region}-${AWS::AccountId}" # Unique and explicit bucket name
       VersioningConfiguration:
         Status: Enabled # Recommended for artifact buckets
-      # LifecycleConfiguration: # Optional: to clean up old artifacts
-      #   Rules:
-      #     - Id: CleanUpOldArtifacts
-      #       Status: Enabled
-      #       ExpirationInDays: 90 # e.g., delete objects older than 90 days
       Tags:
         - Key: Name
           Value: DevSecOps-CodePipeline-Artifacts
@@ -48,7 +43,6 @@ Resources:
       RoleArn: !ImportValue DevSecOpsCodePipelineServiceRoleV2Arn
       ArtifactStore:
         Type: S3
-        # Reference the explicitly created S3 bucket for artifacts
         Location: !Ref CodePipelineArtifactBucket
 
       Stages:
@@ -65,7 +59,7 @@ Resources:
                 ConnectionArn: !Ref GitHubConnectionArn
                 FullRepositoryId: !Join ['/', [!Ref GitHubOwner, !Ref GitHubRepoName]]
                 BranchName: !Ref GitHubBranch
-                OutputArtifactFormat: CODEZIP
+                # REMOVED: OutputArtifactFormat: CODEZIP - This is not valid for CodeStarSourceConnection
               OutputArtifacts:
                 - Name: SourceOutput
               RunOrder: 1
