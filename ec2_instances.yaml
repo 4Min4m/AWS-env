@@ -9,15 +9,7 @@ Parameters:
   KeyPairName:
     Type: String
     Description: The name of an existing EC2 KeyPair to enable SSH access to the instances.
-    Default: 'my-ssh-key' # <--- IMPORTANT: Replace with your actual key pair name or create one if you don't have one
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-    Description: The ID of the VPC where the instances will be launched.
-    ConstraintDescription: Must be the ID of an existing VPC.
-  SubnetId:
-    Type: 'AWS::EC2::Subnet::Id'
-    Description: The ID of the subnet where the instances will be launched.
-    ConstraintDescription: Must be the ID of an existing public subnet within the selected VPC.
+    Default: 'DevSecOpsPipeline'
 
 Resources:
   # Security Group to allow HTTP and SSH access
@@ -26,7 +18,7 @@ Resources:
     Properties:
       GroupName: DevSecOpsWebServerSG
       GroupDescription: Enable HTTP and SSH access
-      VpcId: !Ref VpcId
+      VpcId: !ImportValue DevSecOpsVpcId # Importing VPC ID from vpc.yaml stack
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80 # HTTP
@@ -43,14 +35,14 @@ Resources:
     Properties:
       ImageId: !Ref LatestAmiId
       InstanceType: t2.micro # Free Tier eligible
-      KeyName: !Ref DevSecOps Pipeline
-      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfile # Reference to IAM profile from iam_roles.yaml
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfileNameV2 # IMPORTING THE NAME
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
           GroupSet:
             - !Ref WebServerSecurityGroup
-          SubnetId: !Ref SubnetId
+          SubnetId: !ImportValue DevSecOpsPublicSubnetId # Importing Subnet ID from vpc.yaml stack
       Tags:
         - Key: Name
           Value: DevSecOps-Staging-Instance
@@ -79,13 +71,13 @@ Resources:
       ImageId: !Ref LatestAmiId
       InstanceType: t2.micro # Free Tier eligible
       KeyName: !Ref KeyPairName
-      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfile # Reference to IAM profile from iam_roles.yaml
+      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfileNameV2 # IMPORTING THE NAME
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
           GroupSet:
             - !Ref WebServerSecurityGroup
-          SubnetId: !Ref SubnetId
+          SubnetId: !ImportValue DevSecOpsPublicSubnetId # Importing Subnet ID from vpc.yaml stack
       Tags:
         - Key: Name
           Value: DevSecOps-Production-Instance

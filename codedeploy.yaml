@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CodeDeploy Application and Deployment Groups for DevSecOps Pipeline.
+
+Parameters:
+  StagingInstanceTag:
+    Type: String
+    Default: Staging
+    Description: Value of the 'Environment' tag for Staging EC2 instance.
+  ProductionInstanceTag:
+    Type: String
+    Default: Production
+    Description: Value of the 'Environment' tag for Production EC2 instance.
+
+Resources:
+  # CodeDeploy Application
+  NodeJsAppCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: DevSecOpsNodeJsApp
+
+  # CodeDeploy Deployment Group for Staging
+  StagingDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref NodeJsAppCodeDeployApplication
+      DeploymentGroupName: DevSecOpsStagingDeploymentGroup
+      ServiceRoleArn: !ImportValue DevSecOpsCodeDeployServiceRoleV2Arn
+      DeploymentConfigName: CodeDeployDefault.OneAtATime # For basic deployments
+      Ec2TagFilters:
+        - Key: Environment
+          Value: !Ref StagingInstanceTag
+          Type: KEY_AND_VALUE # Re-including Type as it's valid for Ec2TagFilter
+      # REMOVED: DeploymentStyle property, as it's not needed for basic in-place deployment without a load balancer
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_ALARM # Rollback on CloudWatch alarm (not configured in demo)
+          - DEPLOYMENT_STOP_ON_REQUEST
+      # Optional: Add CloudWatch Alarms for monitoring
+      # AlarmConfiguration:
+      #   Enabled: false
+      #   Alarms: []
+
+  # CodeDeploy Deployment Group for Production
+  ProductionDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref NodeJsAppCodeDeployApplication
+      DeploymentGroupName: DevSecOpsProductionDeploymentGroup
+      ServiceRoleArn: !ImportValue DevSecOpsCodeDeployServiceRoleV2Arn
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      Ec2TagFilters:
+        - Key: Environment
+          Value: !Ref ProductionInstanceTag
+          Type: KEY_AND_VALUE # Re-including Type as it's valid for Ec2TagFilter
+      # REMOVED: DeploymentStyle property, as it's not needed for basic in-place deployment without a load balancer
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_ALARM
+          - DEPLOYMENT_STOP_ON_REQUEST

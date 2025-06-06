@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2.
+Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2. (V6 - Exporting CodeDeploy Service Role ARN)
 
 Resources:
   # IAM Role for AWS CodePipeline
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsCodePipelineServiceRole
+      RoleName: DevSecOpsCodePipelineServiceRoleV2
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -16,16 +16,16 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For pipeline artifacts
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-        - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess # To trigger CodeDeploy
+        - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
       Path: /
 
   # IAM Role for AWS CodeBuild
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsCodeBuildServiceRole
+      RoleName: DevSecOpsCodeBuildServiceRoleV2
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -36,14 +36,14 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For artifacts
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
       Path: /
 
   # IAM Role for AWS CodeDeploy
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsCodeDeployServiceRole
+      RoleName: DevSecOpsCodeDeployServiceRoleV2
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -52,15 +52,15 @@ Resources:
               Service: codedeploy.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodeDeployRole # Standard managed policy for CodeDeploy service role
-        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess # To get deployment artifacts from S3
+        - arn:aws:iam::aws:policy/AdministratorAccess # Keeping AdministratorAccess for now
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
       Path: /
 
   # IAM Role for EC2 Instances (for CodeDeploy Agent)
   EC2InstanceProfileRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsEC2CodeDeployRole
+      RoleName: DevSecOpsEC2CodeDeployRoleV2
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -69,22 +69,44 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy # Allows EC2 to interact with CodeDeploy
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # Allows SSM agent (useful for troubleshooting)
-        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy # For CloudWatch logs from EC2
+        - arn:aws:iam::aws:policy/AdministratorAccess # Keeping AdministratorAccess for now
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Path: /
 
   # IAM Instance Profile for EC2 Instances
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: DevSecOpsEC2CodeDeployProfile
+      InstanceProfileName: DevSecOpsEC2CodeDeployProfileV2
       Roles:
         - !Ref EC2InstanceProfileRole
 
-  # SNS Topic for Manual Approval notifications (Optional but recommended for real pipelines)
+  # SNS Topic for Manual Approval notifications
   DevSecOpsApprovalNotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: DevSecOpsApprovalNotification
-      DisplayName: DevSecOps Approval Notifications
+      TopicName: DevSecOpsApprovalNotificationV2
+      DisplayName: DevSecOps Approval Notifications V2
+
+Outputs:
+  # Export the ARN of the CodeDeploy Service Role
+  CodeDeployServiceRoleArn:
+    Description: ARN of the CodeDeploy Service Role
+    Value: !GetAtt CodeDeployServiceRole.Arn # <--- NEW EXPORT
+    Export:
+      Name: DevSecOpsCodeDeployServiceRoleV2Arn # <--- Unique export name
+
+  # Export the ARN of the EC2 Instance Profile
+  EC2InstanceProfileArn:
+    Description: ARN of the EC2 Instance Profile for CodeDeploy agent
+    Value: !GetAtt EC2InstanceProfile.Arn
+    Export:
+      Name: DevSecOpsEC2CodeDeployProfileV2Arn
+
+  # Export the NAME of the EC2 Instance Profile (for use with EC2::Instance)
+  EC2InstanceProfileName:
+    Description: Name of the EC2 Instance Profile for CodeDeploy agent
+    Value: !Ref EC2InstanceProfile
+    Export:
+      Name: DevSecOpsEC2CodeDeployProfileNameV2

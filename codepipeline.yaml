@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CodePipeline for a DevSecOps Node.js application.
+  Includes source, security scanning (simulated), build, manual approvals,
+  and deployment to staging and production EC2 instances via CodeDeploy.
+
+Parameters:
+  GitHubRepoName:
+    Type: String
+    Description: AWS-env
+  GitHubOwner:
+    Type: String
+    Description: 4Min4m
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: main
+  GitHubConnectionArn:
+    Type: String
+    Default: arn:aws:codeconnections:us-east-1:864981715490:connection/743c9fe4-1a25-46e1-b068-daf51b807075
+    Description: The ARN of the AWS CodeStar Connections connection to GitHub.
+
+Resources:
+  # AWS CodePipeline Definition
+  DevSecOpsPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: DevSecOpsNodeJsPipeline # Name of the CodePipeline
+      # Referencing the Logical ID of the CodePipeline service role from iam_roles.yaml
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        # CodePipeline automatically creates a bucket if you don't specify one.
+        Location: !Sub "codepipeline-${AWS::Region}-${AWS::AccountId}" # Default artifact bucket pattern.
+
+      Stages:
+        # 1. Source Stage: Fetches code from GitHub
+        - Name: Source
+          Actions:
+            - Name: SourceCode
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Ref GitHubConnectionArn
+                FullRepositoryId: !Join ['/', [!Ref GitHubOwner, !Ref GitHubRepoName]]
+                BranchName: !Ref GitHubBranch
+                OutputArtifactFormat: CODEZIP
+              OutputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+
+        # 2. Build-SecurityScan Stage: Runs a simulated SAST/SCA scan
+        - Name: Build-SecurityScan
+          Actions:
+            - Name: SAST-SCA-Simulation
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref SecurityScanCodeBuildProject # Reference to CodeBuild project below
+              InputArtifacts:
+                - Name: SourceOutput
+              # Output artifact is not needed for this simulation
+              RunOrder: 1
+
+        # 3. Build Stage: Builds the Node.js application
+        - Name: Build-Application
+          Actions:
+            - Name: BuildAndTestNodeJsApp
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref NodeJsAppCodeBuildProject # Reference to CodeBuild project below
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput # Output artifact containing the built app and appspec.yml
+              RunOrder: 1
+
+        # 4. Manual Approval Stage (Staging): Pauses for review before staging deployment
+        - Name: ManualApproval-Staging
+          Actions:
+            - Name: ApproveDeploymentToStaging
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                CustomData: "Security scan and build complete. Review CodeBuild logs for details. Approve to deploy to Staging."
+                ExternalEntityLink: !Sub "https://github.com/${GitHubOwner}/${GitHubRepoName}/actions/runs/${CODEBUILD_BUILD_ID}" # Example link to GitHub Actions
+                # Referencing the Logical ID of the SNS topic from iam_roles.yaml
+                NotificationArn: !GetAtt DevSecOpsApprovalNotificationTopic.Arn
+              RunOrder: 1
+
+        # 5. DeployToStaging Stage: Deploys to Staging EC2 via CodeDeploy
+        - Name: DeployToStaging
+          Actions:
+            - Name: DeployNodeJsAppToStaging
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: '1'
+              Configuration:
+                # References Logical ID from codedeploy.yaml (within the same stack)
+                ApplicationName: !Ref NodeJsAppCodeDeployApplication
+                # References Logical ID from codedeploy.yaml (within the same stack)
+                DeploymentGroupName: !Ref StagingDeploymentGroup
+              InputArtifacts:
+                - Name: BuildOutput # Input is the artifact from the build stage
+              RunOrder: 1
+
+        # 6. Manual Approval Stage (Production): Pauses for review before production deployment
+        - Name: ManualApproval-Production
+          Actions:
+            - Name: ApproveDeploymentToProduction
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                CustomData: !Sub "Staging deployment successful. Review the staging environment (EC2 Public IP: ${DevSecOpsStagingInstancePublicIp}) and approve for Production deployment."
+                ExternalEntityLink: !ImportValue DevSecOpsStagingInstancePublicIp # Imports from ec2_instances.yaml
+                # Referencing the Logical ID of the SNS topic from iam_roles.yaml
+                NotificationArn: !GetAtt DevSecOpsApprovalNotificationTopic.Arn
+              RunOrder: 1
+
+        # 7. DeployToProduction Stage: Deploys to Production EC2 via CodeDeploy
+        - Name: DeployToProduction
+          Actions:
+            - Name: DeployNodeJsAppToProduction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: '1'
+              Configuration:
+                # References Logical ID from codedeploy.yaml (within the same stack)
+                ApplicationName: !Ref NodeJsAppCodeDeployApplication
+                # References Logical ID from codedeploy.yaml (within the same stack)
+                DeploymentGroupName: !Ref ProductionDeploymentGroup
+              InputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+
+  # AWS CodeBuild Project for Security Scan Simulation
+  SecurityScanCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: DevSecOpsSecurityScanProject
+      Description: CodeBuild project for simulating SAST/SCA security scans on Node.js.
+      # Referencing the Logical ID of the CodeBuild service role from iam_roles.yaml
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0 # Or specific Node.js image if preferred (e.g., aws/codebuild/nodejs:18)
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: NODE_ENV
+            Value: development
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-sast-sca.yml
+      TimeoutInMinutes: 5
+
+  # AWS CodeBuild Project for Building and Testing the Node.js App
+  NodeJsAppCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: DevSecOpsNodeJsAppBuildProject
+      Description: CodeBuild project for building and testing the Node.js application.
+      # Referencing the Logical ID of the CodeBuild service role from iam_roles.yaml
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0 # Or specific Node.js image
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: NODE_ENV
+            Value: ci
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-build-test.yml
+      TimeoutInMinutes: 5
+
+Outputs:
+  DevSecOpsPipelineUrl:
+    Description: URL of the AWS CodePipeline
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${DevSecOpsPipeline}/view?region=${AWS::Region}"

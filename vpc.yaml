@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates a basic VPC with a single public subnet and an Internet Gateway for EC2 instances.
+
+Resources:
+  # 1. Create a Virtual Private Cloud (VPC)
+  # This is your isolated network in AWS.
+  DevSecOpsVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16 # The IP address range for your VPC
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: DevSecOps-VPC
+
+  # 2. Create an Internet Gateway
+  # Allows communication between your VPC and the internet.
+  DevSecOpsInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: DevSecOps-InternetGateway
+
+  # 3. Attach the Internet Gateway to your VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref DevSecOpsVPC
+      InternetGatewayId: !Ref DevSecOpsInternetGateway
+
+  # 4. Create a Public Subnet
+  # EC2 instances in this subnet can have public IP addresses and reach the internet.
+  DevSecOpsPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevSecOpsVPC
+      CidrBlock: 10.0.0.0/24 # A smaller range within your VPC's CIDR
+      AvailabilityZone: !Select [ 0, !GetAZs '' ] # Automatically picks the first AZ in your region
+      MapPublicIpOnLaunch: true # Instances launched here automatically get a public IP
+      Tags:
+        - Key: Name
+          Value: DevSecOps-PublicSubnet
+
+  # 5. Create a Route Table for the Public Subnet
+  # Defines rules for routing network traffic from the subnet.
+  DevSecOpsPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DevSecOpsVPC
+      Tags:
+        - Key: Name
+          Value: DevSecOps-PublicRouteTable
+
+  # 6. Create a Route to the Internet Gateway
+  # Directs all internet-bound traffic (0.0.0.0/0) to the Internet Gateway.
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway # Ensure gateway is attached before creating the route
+    Properties:
+      RouteTableId: !Ref DevSecOpsPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref DevSecOpsInternetGateway
+
+  # 7. Associate the Public Subnet with the Public Route Table
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DevSecOpsPublicSubnet
+      RouteTableId: !Ref DevSecOpsPublicRouteTable
+
+Outputs:
+  VpcId:
+    Description: The ID of the newly created VPC
+    Value: !Ref DevSecOpsVPC
+    Export:
+      Name: DevSecOpsVpcId
+
+  PublicSubnetId:
+    Description: The ID of the newly created public subnet
+    Value: !Ref DevSecOpsPublicSubnet
+    Export:
+      Name: DevSecOpsPublicSubnetId
