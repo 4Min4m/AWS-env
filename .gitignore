@@ -134,3 +134,12 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+
+# AWS CLI configuration and credentials
+.aws/
+awscliv2.zip
+aws/
+
+# General temporary files
+*.zip

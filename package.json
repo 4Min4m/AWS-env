@@ -1,0 +1,15 @@
+{
+  "name": "aws-env",
+  "version": "1.0.0",
+  "description": "devsecops-hello-world-app",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \\\"No unit tests implemented for this demo.\\\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "aws-env"
+  },
+  "author": "",
+  "license": "ISC"
+}
