@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2. (V6 - Exporting CodeDeploy Service Role ARN)
+Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2. (V7 - Exporting All Required Role/Topic ARNs)
 
 Resources:
   # IAM Role for AWS CodePipeline
@@ -90,12 +90,26 @@ Resources:
       DisplayName: DevSecOps Approval Notifications V2
 
 Outputs:
+  # Export the ARN of the CodePipeline Service Role
+  CodePipelineServiceRoleArn:
+    Description: ARN of the CodePipeline Service Role
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export:
+      Name: DevSecOpsCodePipelineServiceRoleV2Arn # <--- NEW EXPORT
+
+  # Export the ARN of the CodeBuild Service Role
+  CodeBuildServiceRoleArn:
+    Description: ARN of the CodeBuild Service Role
+    Value: !GetAtt CodeBuildServiceRole.Arn
+    Export:
+      Name: DevSecOpsCodeBuildServiceRoleV2Arn # <--- NEW EXPORT
+
   # Export the ARN of the CodeDeploy Service Role
   CodeDeployServiceRoleArn:
     Description: ARN of the CodeDeploy Service Role
-    Value: !GetAtt CodeDeployServiceRole.Arn # <--- NEW EXPORT
+    Value: !GetAtt CodeDeployServiceRole.Arn
     Export:
-      Name: DevSecOpsCodeDeployServiceRoleV2Arn # <--- Unique export name
+      Name: DevSecOpsCodeDeployServiceRoleV2Arn
 
   # Export the ARN of the EC2 Instance Profile
   EC2InstanceProfileArn:
@@ -110,3 +124,10 @@ Outputs:
     Value: !Ref EC2InstanceProfile
     Export:
       Name: DevSecOpsEC2CodeDeployProfileNameV2
+
+  # Export the ARN of the SNS Topic
+  DevSecOpsApprovalNotificationTopicArn:
+    Description: ARN of the SNS Topic for approval notifications
+    Value: !Ref DevSecOpsApprovalNotificationTopic # Use !Ref for the ARN of an SNS Topic
+    Export:
+      Name: DevSecOpsApprovalNotificationTopicV2Arn # <--- NEW EXPORT
