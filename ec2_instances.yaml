@@ -2,23 +2,22 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: EC2 Instances for Staging and Production with CodeDeploy agent (Ubuntu AMI).
 
 Parameters:
-  # Changed to a typical Ubuntu AMI ID for us-east-1
   LatestAmiId:
     Type: String
-    Default: 'ami-0a7d80731ae1b2435'
+    Default: 'ami-0a7d80731ae1b2435' # IMPORTANT: Ensure this is a current Ubuntu 22.04 LTS AMI ID for us-east-1
     Description: Latest Ubuntu Server 22.04 LTS AMI ID for us-east-1.
   KeyPairName:
     Type: String
     Description: The name of an existing EC2 KeyPair to enable SSH access to the instances.
-    Default: 'DevSecOpsPipeline'
+    Default: 'DevSecOpsPipeline' # IMPORTANT: Replace with your actual key pair name
 
 Resources:
-  # Security Group to allow HTTP and SSH access
+  # Security Group to allow HTTP, SSH, AND PORT 3000 access
   WebServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: DevSecOpsWebServerSG
-      GroupDescription: Enable HTTP and SSH access
+      GroupDescription: Enable HTTP, SSH, and Node.js app (port 3000) access
       VpcId: !ImportValue DevSecOpsVpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -29,6 +28,10 @@ Resources:
           FromPort: 22 # SSH
           ToPort: 22
           CidrIp: 0.0.0.0/0 # Allow SSH from anywhere (restrict in prod)
+        - IpProtocol: tcp # NEW RULE: Allow Node.js app port
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0 # Allow from anywhere for demo purpose
 
   # EC2 Instance for Staging Environment
   StagingEC2Instance:
@@ -53,30 +56,23 @@ Resources:
           Value: DevSecOpsDemo
       UserData: !Base64 |
         #!/bin/bash
-        # Update packages and install prerequisites for Ubuntu
         sudo apt update -y
         sudo apt install -y ruby-full wget git apt-transport-https ca-certificates curl gnupg lsb-release
 
-        # Install Node.js LTS (using NodeSource's recommended method for Ubuntu)
         curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
         sudo apt-get install -y nodejs
         echo "Node.js installed."
 
-        # Install PM2 globally
         sudo npm install -g pm2
         echo "PM2 installed."
 
-        # Install CodeDeploy agent
-        cd /home/ubuntu # Default user for Ubuntu AMIs
+        cd /home/ubuntu
         wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
         chmod +x ./install
-        sudo ./install auto # Installs and starts agent, assumes 'ubuntu' user for CodeDeploy purposes
+        sudo ./install auto
         sudo service codedeploy-agent start
         echo "CodeDeploy Agent installed and started."
 
-        # Adjust permissions for ubuntu user to access .nvm (if nvm were used, but we're doing global install)
-        # For global npm installs, this is often less critical.
-        # Ensure the deploy directory is owned by ubuntu user for CodeDeploy
         sudo mkdir -p /home/ubuntu/devsecops-app
         sudo chown -R ubuntu:ubuntu /home/ubuntu/devsecops-app
         echo "Permissions set for /home/ubuntu/devsecops-app."
@@ -104,33 +100,28 @@ Resources:
           Value: DevSecOpsDemo
       UserData: !Base64 |
         #!/bin/bash
-        # Update packages and install prerequisites for Ubuntu
         sudo apt update -y
         sudo apt install -y ruby-full wget git apt-transport-https ca-certificates curl gnupg lsb-release
 
-        # Install Node.js LTS (using NodeSource's recommended method for Ubuntu)
         curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
         sudo apt-get install -y nodejs
         echo "Node.js installed."
 
-        # Install PM2 globally
         sudo npm install -g pm2
         echo "PM2 installed."
 
-        # Install CodeDeploy agent
-        cd /home/ubuntu # Default user for Ubuntu AMIs
+        cd /home/ubuntu
         wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
         chmod +x ./install
         sudo ./install auto
         sudo service codedeploy-agent start
         echo "CodeDeploy Agent installed and started."
 
-        # Adjust permissions for ubuntu user to access .nvm (if nvm were used, but we're doing global install)
         sudo mkdir -p /home/ubuntu/devsecops-app
         sudo chown -R ubuntu:ubuntu /home/ubuntu/devsecops-app
         echo "Permissions set for /home/ubuntu/devsecops-app."
 
-Outputs:
+Outputs: # <--- This Outputs block must be at the top level, outside of Resources
   StagingInstancePublicIp:
     Description: Public IP of the Staging EC2 Instance
     Value: !GetAtt StagingEC2Instance.PublicIp
