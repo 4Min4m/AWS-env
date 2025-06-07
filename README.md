@@ -1,6 +1,6 @@
 # Serverless DevSecOps CI/CD Pipeline on AWS with Node.js
 
-[!DevSecOps Pipeline Diagram](images/diagram.png)
+<img src="images/diagram.png" alt="DevSecOps Pipeline Diagram" width="100%">
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -176,15 +176,15 @@ aws cloudformation deploy \
 
 ## Verification & Screenshots
 - **Full Pipeline Execution Success**: Screenshot AWS CodePipeline console showing Succeeded statuses.
-[!Full Pipeline Execution Success](images/pipeline_success.png)
+<img src="images/pipeline_success.png" alt="Full Pipeline Execution Success" width="100%">
 - **Staging Environment Application**: Visit http://<Staging_EC2_Public_IP>:3000 and screenshot.
-[!Staging Environment Application](images/staging_app.png)
+<img src="images/staging_app.png" alt="Staging Environment Application" width="100%">
 - **Production Environment Application**: Visit http://<Production_EC2_Public_IP>:3000 and screenshot.
-[!Production Environment Application](images/production_app.png)
+<img src="images/production_app.png" alt="Production Environment Application" width="100%">
 - **CodeBuild Security Scan Logs**: View CodeBuild logs for Build-SecurityScan and screenshot.
-[!CodeBuild Security Scan Logs](images/security_scan_logs.png)
+<img src="images/security_scan_logs.png" alt="CodeBuild Security Scan Logs" width="100%">
 - **CodeDeploy Successful Events**: View CodeDeploy Events for DeployToStaging/DeployToProduction and screenshot.
-[!CodeDeploy Successful Events](images/events.png)
+<img src="images/events.png" alt="CodeDeploy Successful Events" width="100%">
 
 ## Maintaining the Environment & Cost Management
 - **EC2 Instances**: Stop DevSecOps-Staging-Instance and DevSecOps-Production-Instance when idle.
@@ -226,25 +226,6 @@ aws cloudformation wait stack-delete-complete --stack-name DevSecOpsVPCStack
 - Security Hub & GuardDuty: Integrate security findings.
 - Compliance & Governance: Explore AWS Config and AWS Organizations.
 - Cost Optimization: Use autoscaling, Spot Instances, or AWS Lambda.
-
-
-```mermaid
-graph TD
-    A[Developers] --> B[GitHub]
-    B --> C[AWS CodePipeline]
-    C -->|Source| D[AWS CodeBuild<br>Build & Security Scan]
-    D -->|Build Artifact| E[AWS CodeBuild<br>App Build]
-    E -->|App Artifact| F[Manual Approval<br>Staging]
-    F -->|SNS Notification| G[AWS CodeDeploy<br>Deploy to Staging]
-    G --> H[EC2 Instance<br>Staging]
-    H -->|http://:3000| I[Manual Approval<br>Production]
-    I -->|SNS Notification| J[AWS CodeDeploy<br>Deploy to Production]
-    J --> K[EC2 Instance<br>Production]
-    L[AWS IAM] --> C
-    M[AWS S3] --> C
-    N[AWS VPC] --> H
-    N --> K
-```
 
 
 ## Author
