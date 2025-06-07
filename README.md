@@ -213,7 +213,7 @@ aws cloudformation wait stack-delete-complete --stack-name DevSecOpsIAMRoles
 aws cloudformation delete-stack --stack-name DevSecOpsVPCStack
 aws cloudformation wait stack-delete-complete --stack-name DevSecOpsVPCStack
 ```
-4. **Delete Code* Connection**:
+4. **Delete Code Connection**:
    - In [CodePipeline Console](https://console.aws.amazon.com/codepipeline/), delete the GitHub connection.
 5. **Delete Other Resources**:
    - **CloudWatch Logs**: Delete /aws/codebuild/DevSecOps... log groups.
