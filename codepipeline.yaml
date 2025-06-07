@@ -40,7 +40,7 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: DevSecOpsNodeJsPipeline # Name of the CodePipeline
-      RoleArn: !ImportValue DevSecOpsCodePipelineServiceRoleV2Arn
+      RoleArn: !ImportValue DevSecOpsCodePipelineServiceRoleArn
       ArtifactStore:
         Type: S3
         Location: !Ref CodePipelineArtifactBucket
@@ -108,7 +108,7 @@ Resources:
               Configuration:
                 CustomData: "Security scan and build complete. Review CodeBuild logs for details. Approve to deploy to Staging."
                 ExternalEntityLink: !Sub "https://github.com/${GitHubOwner}/${GitHubRepoName}"
-                NotificationArn: !ImportValue DevSecOpsApprovalNotificationTopicV2Arn
+                NotificationArn: !ImportValue DevSecOpsApprovalNotificationTopicArn
               RunOrder: 1
 
         # 5. DeployToStaging Stage: Deploys to Staging EC2 via CodeDeploy
@@ -139,7 +139,7 @@ Resources:
               Configuration:
                 CustomData: "Staging deployment successful. Review the staging environment using the link provided above and approve for Production deployment."
                 ExternalEntityLink: !ImportValue DevSecOpsStagingInstancePublicIp
-                NotificationArn: !ImportValue DevSecOpsApprovalNotificationTopicV2Arn
+                NotificationArn: !ImportValue DevSecOpsApprovalNotificationTopicArn
               RunOrder: 1
 
         # 7. DeployToProduction Stage: Deploys to Production EC2 via CodeDeploy
@@ -164,7 +164,7 @@ Resources:
     Properties:
       Name: DevSecOpsSecurityScanProject
       Description: CodeBuild project for simulating SAST/SCA security scans on Node.js.
-      ServiceRole: !ImportValue DevSecOpsCodeBuildServiceRoleV2Arn
+      ServiceRole: !ImportValue DevSecOpsCodeBuildServiceRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -185,7 +185,7 @@ Resources:
     Properties:
       Name: DevSecOpsNodeJsAppBuildProject
       Description: CodeBuild project for building and testing the Node.js application.
-      ServiceRole: !ImportValue DevSecOpsCodeBuildServiceRoleV2Arn
+      ServiceRole: !ImportValue DevSecOpsCodeBuildServiceRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:

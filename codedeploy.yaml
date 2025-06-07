@@ -24,7 +24,7 @@ Resources:
     Properties:
       ApplicationName: !Ref NodeJsAppCodeDeployApplication
       DeploymentGroupName: DevSecOpsStagingDeploymentGroup
-      ServiceRoleArn: !ImportValue DevSecOpsCodeDeployServiceRoleV2Arn
+      ServiceRoleArn: !ImportValue DevSecOpsCodeDeployServiceRoleArn
       DeploymentConfigName: CodeDeployDefault.OneAtATime # For basic deployments
       Ec2TagFilters:
         - Key: Environment
@@ -43,7 +43,7 @@ Resources:
     Properties:
       ApplicationName: !Ref NodeJsAppCodeDeployApplication
       DeploymentGroupName: DevSecOpsProductionDeploymentGroup
-      ServiceRoleArn: !ImportValue DevSecOpsCodeDeployServiceRoleV2Arn
+      ServiceRoleArn: !ImportValue DevSecOpsCodeDeployServiceRoleArn
       DeploymentConfigName: CodeDeployDefault.OneAtATime
       Ec2TagFilters:
         - Key: Environment

@@ -1,11 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: EC2 Instances for Staging and Production with CodeDeploy agent.
+Description: EC2 Instances for Staging and Production with CodeDeploy agent (Ubuntu AMI).
 
 Parameters:
+  # Changed to a typical Ubuntu AMI ID for us-east-1
   LatestAmiId:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-    Description: Latest Amazon Linux 2 AMI ID from Systems Manager Parameter Store.
+    Type: String
+    Default: 'ami-0a7d80731ae1b2435'
+    Description: Latest Ubuntu Server 22.04 LTS AMI ID for us-east-1.
   KeyPairName:
     Type: String
     Description: The name of an existing EC2 KeyPair to enable SSH access to the instances.
@@ -18,7 +19,7 @@ Resources:
     Properties:
       GroupName: DevSecOpsWebServerSG
       GroupDescription: Enable HTTP and SSH access
-      VpcId: !ImportValue DevSecOpsVpcId # Importing VPC ID from vpc.yaml stack
+      VpcId: !ImportValue DevSecOpsVpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80 # HTTP
@@ -36,13 +37,13 @@ Resources:
       ImageId: !Ref LatestAmiId
       InstanceType: t2.micro # Free Tier eligible
       KeyName: !Ref KeyPairName
-      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfileNameV2 # IMPORTING THE NAME
+      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfileName
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
           GroupSet:
             - !Ref WebServerSecurityGroup
-          SubnetId: !ImportValue DevSecOpsPublicSubnetId # Importing Subnet ID from vpc.yaml stack
+          SubnetId: !ImportValue DevSecOpsPublicSubnetId
       Tags:
         - Key: Name
           Value: DevSecOps-Staging-Instance
@@ -52,17 +53,33 @@ Resources:
           Value: DevSecOpsDemo
       UserData: !Base64 |
         #!/bin/bash
-        sudo yum update -y
-        sudo yum install -y ruby wget
-        cd /home/ec2-user
+        # Update packages and install prerequisites for Ubuntu
+        sudo apt update -y
+        sudo apt install -y ruby-full wget git apt-transport-https ca-certificates curl gnupg lsb-release
+
+        # Install Node.js LTS (using NodeSource's recommended method for Ubuntu)
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        echo "Node.js installed."
+
+        # Install PM2 globally
+        sudo npm install -g pm2
+        echo "PM2 installed."
+
+        # Install CodeDeploy agent
+        cd /home/ubuntu # Default user for Ubuntu AMIs
         wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
         chmod +x ./install
-        sudo ./install auto
+        sudo ./install auto # Installs and starts agent, assumes 'ubuntu' user for CodeDeploy purposes
         sudo service codedeploy-agent start
         echo "CodeDeploy Agent installed and started."
-        # Install Node.js and npm
-        curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
-        sudo yum install -y nodejs
+
+        # Adjust permissions for ubuntu user to access .nvm (if nvm were used, but we're doing global install)
+        # For global npm installs, this is often less critical.
+        # Ensure the deploy directory is owned by ubuntu user for CodeDeploy
+        sudo mkdir -p /home/ubuntu/devsecops-app
+        sudo chown -R ubuntu:ubuntu /home/ubuntu/devsecops-app
+        echo "Permissions set for /home/ubuntu/devsecops-app."
 
   # EC2 Instance for Production Environment
   ProductionEC2Instance:
@@ -71,13 +88,13 @@ Resources:
       ImageId: !Ref LatestAmiId
       InstanceType: t2.micro # Free Tier eligible
       KeyName: !Ref KeyPairName
-      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfileNameV2 # IMPORTING THE NAME
+      IamInstanceProfile: !ImportValue DevSecOpsEC2CodeDeployProfileName
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
           GroupSet:
             - !Ref WebServerSecurityGroup
-          SubnetId: !ImportValue DevSecOpsPublicSubnetId # Importing Subnet ID from vpc.yaml stack
+          SubnetId: !ImportValue DevSecOpsPublicSubnetId
       Tags:
         - Key: Name
           Value: DevSecOps-Production-Instance
@@ -87,17 +104,31 @@ Resources:
           Value: DevSecOpsDemo
       UserData: !Base64 |
         #!/bin/bash
-        sudo yum update -y
-        sudo yum install -y ruby wget
-        cd /home/ec2-user
+        # Update packages and install prerequisites for Ubuntu
+        sudo apt update -y
+        sudo apt install -y ruby-full wget git apt-transport-https ca-certificates curl gnupg lsb-release
+
+        # Install Node.js LTS (using NodeSource's recommended method for Ubuntu)
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        echo "Node.js installed."
+
+        # Install PM2 globally
+        sudo npm install -g pm2
+        echo "PM2 installed."
+
+        # Install CodeDeploy agent
+        cd /home/ubuntu # Default user for Ubuntu AMIs
         wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
         chmod +x ./install
         sudo ./install auto
         sudo service codedeploy-agent start
         echo "CodeDeploy Agent installed and started."
-        # Install Node.js and npm
-        curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
-        sudo yum install -y nodejs
+
+        # Adjust permissions for ubuntu user to access .nvm (if nvm were used, but we're doing global install)
+        sudo mkdir -p /home/ubuntu/devsecops-app
+        sudo chown -R ubuntu:ubuntu /home/ubuntu/devsecops-app
+        echo "Permissions set for /home/ubuntu/devsecops-app."
 
 Outputs:
   StagingInstancePublicIp:

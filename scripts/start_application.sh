@@ -1,6 +1,6 @@
     #!/bin/bash
     # Start the Node.js application using PM2 for process management
-    APP_DIR="/home/ec2-user/devsecops-app"
+    APP_DIR="/home/ubuntu/devsecops-app"
     cd "$APP_DIR"
     export NODE_ENV=$DEPLOYMENT_GROUP_NAME # Set NODE_ENV based on deployment group name (Staging/Production)
     echo "Starting Node.js application with NODE_ENV=${NODE_ENV}..."

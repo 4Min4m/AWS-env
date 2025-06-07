@@ -1,6 +1,6 @@
     #!/bin/bash
     # Stop the Node.js application if it's running
-    if [ -f /home/ec2-user/devsecops-app/app.js ]; then
+    if [ -f /home/ubuntu/devsecops-app/app.js ]; then
       # Find and kill the Node.js process listening on port 3000
       PM2_APP_NAME="devsecops-hello-world-app"
       PM2_IS_INSTALLED=$(pm2 -v)
