@@ -177,12 +177,16 @@ aws cloudformation deploy \
 ## Verification & Screenshots
 - **Full Pipeline Execution Success**: Screenshot AWS CodePipeline console showing Succeeded statuses.
 <img src="images/pipeline_success.png" alt="Full Pipeline Execution Success" width="100%">
+
 - **Staging Environment Application**: Visit http://<Staging_EC2_Public_IP>:3000 and screenshot.
 <img src="images/staging_app.png" alt="Staging Environment Application" width="100%">
+
 - **Production Environment Application**: Visit http://<Production_EC2_Public_IP>:3000 and screenshot.
 <img src="images/production_app.png" alt="Production Environment Application" width="100%">
+
 - **CodeBuild Security Scan Logs**: View CodeBuild logs for Build-SecurityScan and screenshot.
 <img src="images/security_scan_logs.png" alt="CodeBuild Security Scan Logs" width="100%">
+
 - **CodeDeploy Successful Events**: View CodeDeploy Events for DeployToStaging/DeployToProduction and screenshot.
 <img src="images/events.png" alt="CodeDeploy Successful Events" width="100%">
 
