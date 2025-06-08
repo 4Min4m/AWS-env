@@ -6,45 +6,62 @@ Resources:
   LambdaCodeDeployApplication:
     Type: AWS::CodeDeploy::Application
     Properties:
-      ApplicationName: TransactionSimulatorLambdaApp # This is the name referenced by the pipeline
+      ApplicationName: TransactionSimulatorLambdaApp
+      ComputePlatform: Lambda # REQUIRED: Must specify Lambda platform
 
   # CodeDeploy Deployment Group for Lambda Canary Deployment
   LambdaDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     Properties:
-      ApplicationName: !Ref LambdaCodeDeployApplication.ApplicationName
-      DeploymentGroupName: TransactionSimulatorLambdaDeploymentGroup # This name will be referenced in CodePipeline
+      ApplicationName: !Ref LambdaCodeDeployApplication # Reference the application by its logical ID
+      DeploymentGroupName: TransactionSimulatorLambdaDeploymentGroup
       DeploymentStyle:
         DeploymentType: BLUE_GREEN # Required for Lambda traffic shifting
-        DeploymentOption: WITH_TRAFFIC_CONTROL # Required for BLUE_GREEN
-      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn # CodeDeploy's service role (defined in CodePipeline YAML for now, but should ideally be in its own IAM stack)
-      DeploymentConfigName: CodeDeployDefault.LambdaLinear10PercentEvery1Minute # Example: 10% traffic every 1 minute
-      # Other options:
-      # CodeDeployDefault.LambdaCanary10Percent5Minutes
-      # CodeDeployDefault.LambdaAllAtOnce (for immediate full shift)
-
-      # Lambda Function Configuration (Required for CodeDeploy Lambda deployment type)
-      # This tells CodeDeploy which Lambda function and aliases it's managing.
-      # The properties reference the Lambda function and aliases that Terraform will deploy.
-      LambdaFunctionInfoList:
-        - FunctionName: TransactionSimulatorAPI # The name of your Lambda function (as defined in Terraform)
-          FunctionAlias: LIVE # The alias CodeDeploy will shift traffic for (e.g., prod traffic)
-          # Optional: Define hooks for pre-traffic and post-traffic validation Lambdas here
-          # Hooks:
-          #   PreTrafficHook: !GetAtt PreTrafficValidationLambda.Arn # Reference a Lambda ARN
-          #   PostTrafficHook: !GetAtt PostTrafficValidationLambda.Arn # Reference a Lambda ARN
+        DeploymentOption: WITH_TRAFFIC_CONTROL # CORRECTED: Must be WITH_TRAFFIC_CONTROL for Lambda Blue/Green
+      ServiceRoleArn: !ImportValue TransactionSimulatorCodeDeployLambdaRoleArn
+      DeploymentConfigName: CodeDeployDefault.LambdaCanary10Percent5Minutes # CORRECTED: Using a true canary config
+      # Other Lambda deployment config options:
+      # CodeDeployDefault.LambdaCanary10Percent10Minutes
+      # CodeDeployDefault.LambdaCanary10Percent15Minutes
+      # CodeDeployDefault.LambdaCanary10Percent30Minutes
+      # CodeDeployDefault.LambdaLinear10PercentEvery1Minute
+      # CodeDeployDefault.LambdaLinear10PercentEvery2Minutes
+      # CodeDeployDefault.LambdaLinear10PercentEvery3Minutes
+      # CodeDeployDefault.LambdaLinear10PercentEvery10Minutes
+      # CodeDeployDefault.LambdaAllAtOnce
 
       # Auto-rollback settings
       AutoRollbackConfiguration:
         Enabled: true
         Events:
           - DEPLOYMENT_FAILURE # Rollback on deployment failure
-          # - DEPLOYMENT_STOP_ON_ALARM # Can integrate with CloudWatch alarms for health monitoring
+          - DEPLOYMENT_STOP_ON_ALARM # RECOMMENDED: Enable alarm-based rollback
           # - DEPLOYMENT_STOP_ON_REQUEST # Manual rollback
+
+      # OPTIONAL: CloudWatch alarms for automatic rollback (example, alarms need to be defined elsewhere)
+      # AlarmConfiguration:
+      #   Enabled: true
+      #   Alarms:
+      #     - Name: !Sub "${LambdaFunctionName}-ErrorRate" # Replace LambdaFunctionName with actual logical ID or parameter
+      #     - Name: !Sub "${LambdaFunctionName}-Duration" # Replace LambdaFunctionName with actual logical ID or parameter
 
       # Add tags to the deployment group
       Tags:
         - Key: Project
           Value: TransactionSimulator
         - Key: Environment
-          Value: Production # This deployment group manages the production LIVE alias
+          Value: Production
+    DependsOn: LambdaCodeDeployApplication
+
+# OPTIONAL: Outputs for reference in other stacks (already mostly covered in iam_roles.yaml, but good to add for direct reference)
+Outputs:
+  CodeDeployApplicationName:
+    Description: Name of the CodeDeploy Application
+    Value: !Ref LambdaCodeDeployApplication
+    Export:
+      Name: TransactionSimulatorCodeDeployApplicationName
+  DeploymentGroupName:
+    Description: Name of the CodeDeploy Deployment Group
+    Value: !Ref LambdaDeploymentGroup
+    Export:
+      Name: TransactionSimulatorCodeDeployDeploymentGroupName

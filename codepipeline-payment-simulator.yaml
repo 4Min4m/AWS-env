@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: DevSecOps CI/CD Pipeline for Transaction Simulator (Terraform-Driven with Lambda Canary).
 
 Parameters:
-  # GitHub repository parameters for the Transaction Simulator application code
   AppGitHubRepoName:
     Type: String
     Default: TransactionSimulator
@@ -15,10 +14,12 @@ Parameters:
     Type: String
     Default: main
     Description: Git branch to use for the application code (e.g., main)
+
   GitHubConnectionArn:
     Type: String
     Default: arn:aws:codeconnections:us-east-1:864981715490:connection/0235a554-6002-43b2-b35a-bd2c262a07e5
     Description: The ARN of the AWS CodeStar Connections connection to GitHub.
+
 Resources:
   # S3 Bucket for CodePipeline Artifacts
   CodePipelineArtifactBucket:
@@ -27,124 +28,33 @@ Resources:
       BucketName: !Sub "transaction-simulator-pipeline-artifacts-${AWS::Region}-${AWS::AccountId}"
       VersioningConfiguration:
         Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       Tags:
         - Key: Project
           Value: TransactionSimulator
         - Key: Environment
           Value: PipelineArtifacts
 
-  # IAM Role for CodePipeline
-  CodePipelineServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: TransactionSimulatorCodePipelineRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codepipeline.amazonaws.com
-            Action: sts:AssumeRole
-      # Broad access for demo, refine in production
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For artifact bucket
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess # For logs
-        - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess # For Lambda deployments
-        - arn:aws:iam::aws:policy/AWSSystemsManagerReadOnlyAccess # To read SSM parameters
-      Policies:
-        - PolicyName: CodePipelineInlinePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # Permission to use the GitHub Connection
-              - Effect: Allow
-                Action:
-                  - codestar-connections:UseConnection
-                Resource: !Ref GitHubConnectionArn
-              # Permissions to start CodeBuild projects
-              - Effect: Allow
-                Action:
-                  - codebuild:StartBuild
-                  - codebuild:BatchGetBuilds
-                  - codebuild:StopBuild
-                  - codebuild:ListBuildsForProject
-                Resource:
-                  - !GetAtt FrontendBuildProject.Arn
-                  - !GetAtt LambdaPackageProject.Arn
-                  - !GetAtt StaticAnalysisProject.Arn
-                  - !GetAtt TerraformPlanProject.Arn
-                  - !GetAtt TerraformApplyProject.Arn
-                  - !GetAtt SmokeTestsProject.Arn
-              # Permissions to publish to SNS for manual approvals
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: !GetAtt ManualApprovalSNSTopic.Arn
-              # Permissions for CodeDeploy Lambda deployments
-              - Effect: Allow
-                Action:
-                  - iam:PassRole # Allows CodeDeploy to assume its service role
-                Resource: !GetAtt CodeDeployServiceRole.Arn
-
-
-  # IAM Role for CodeDeploy Lambda Deployment
-  # This role is assumed by CodeDeploy to perform traffic shifting for Lambda.
-  CodeDeployServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: TransactionSimulatorCodeDeployLambdaRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codedeploy.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForLambda # Required for Lambda deployments
-        - arn:aws:iam::aws:policy/AWSLambda_FullAccess # CodeDeploy needs to invoke and update Lambda configurations
-      Path: /
-      # Inline policy for Lambda update/invocation permissions controlled by CodeDeploy
-      Policies:
-        - PolicyName: CodeDeployLambdaInvokePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                  - lambda:GetFunction
-                  - lambda:GetFunctionConfiguration
-                  - lambda:UpdateFunctionConfiguration
-                  - lambda:ListVersionsByFunction
-                  - lambda:GetAlias
-                  - lambda:UpdateAlias
-                  - lambda:CreateAlias
-                Resource:
-                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:TransactionSimulatorAPI"
-                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:TransactionSimulatorAPI:*"
-                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:TransactionSimulatorAPI:LIVE"
-                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:TransactionSimulatorAPI:BETA"
-              - Effect: Allow
-                Action:
-                  - apigateway:GET
-                  - apigateway:PATCH
-                Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/${ApiGatewayStage}"
-
-
-  # CodeBuild Projects
+  # CodeBuild Projects - Defined in this CodePipeline stack
   FrontendBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: TransactionSimulatorFrontendBuild
       Description: Builds the React/TypeScript frontend into 'dist' directory.
-      ServiceRole: !GetAtt CodeBuildServiceRole.Arn # Role defined below
+      ServiceRole: !ImportValue TransactionSimulatorCodeBuildRoleArn
       Artifacts:
-        Type: CODEPIPELINE # Output artifacts for the pipeline
+        Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:7.0 # Latest standard image (Ubuntu based)
+        Image: aws/codebuild/standard:7.0
         Type: LINUX_CONTAINER
       Source:
         Type: CODEPIPELINE
@@ -156,7 +66,7 @@ Resources:
     Properties:
       Name: TransactionSimulatorLambdaPackage
       Description: Installs dependencies and zips the Lambda function code.
-      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      ServiceRole: !ImportValue TransactionSimulatorCodeBuildRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -173,7 +83,7 @@ Resources:
     Properties:
       Name: TransactionSimulatorStaticAnalysis
       Description: Runs Checkov for IaC and ESLint for code analysis.
-      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      ServiceRole: !ImportValue TransactionSimulatorCodeBuildRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -190,14 +100,13 @@ Resources:
     Properties:
       Name: TransactionSimulatorTerraformPlan
       Description: Initializes Terraform and generates an execution plan.
-      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      ServiceRole: !ImportValue TransactionSimulatorCodeBuildRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:7.0
         Type: LINUX_CONTAINER
-        # Inject Supabase variables from Parameter Store
         EnvironmentVariables:
           - Name: TF_VAR_supabase_url
             Type: PARAMETER_STORE
@@ -208,21 +117,20 @@ Resources:
       Source:
         Type: CODEPIPELINE
         BuildSpec: buildspec-terraform-plan.yml
-      TimeoutInMinutes: 15 # Terraform plan can sometimes take longer
+      TimeoutInMinutes: 15
 
   TerraformApplyProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: TransactionSimulatorTerraformApply
       Description: Applies the Terraform execution plan to deploy infrastructure.
-      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      ServiceRole: !ImportValue TransactionSimulatorCodeBuildRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:7.0
         Type: LINUX_CONTAINER
-        # Inject Supabase variables from Parameter Store
         EnvironmentVariables:
           - Name: TF_VAR_supabase_url
             Type: PARAMETER_STORE
@@ -233,14 +141,14 @@ Resources:
       Source:
         Type: CODEPIPELINE
         BuildSpec: buildspec-terraform-apply.yml
-      TimeoutInMinutes: 20 # Terraform apply can take longer
+      TimeoutInMinutes: 20
 
   SmokeTestsProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: TransactionSimulatorSmokeTests
       Description: Runs automated smoke tests against the deployed application.
-      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      ServiceRole: !ImportValue TransactionSimulatorCodeBuildRoleArn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -252,81 +160,18 @@ Resources:
         BuildSpec: buildspec-smoke-tests.yml
       TimeoutInMinutes: 10
 
-  # IAM Role for all CodeBuild Projects
-  CodeBuildServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: TransactionSimulatorCodeBuildRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess # Broad access for demo
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For CodeBuild artifacts
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess # For CodeBuild logs
-        - arn:aws:iam::aws:policy/AWSSystemsManagerReadOnlyAccess # To access SSM parameters
-      Policies:
-        - PolicyName: CodeBuildTerraformPermissions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource:
-                  - !Ref CodePipelineArtifactBucket.Arn
-                  - !Sub "${CodePipelineArtifactBucket.Arn}/*"
-                  - !Sub "arn:aws:s3:::transaction-simulator-terraform-tfstate" # Terraform state bucket
-                  - !Sub "arn:aws:s3:::transaction-simulator-terraform-tfstate/*" # Terraform state bucket objects
-                  - !Sub "arn:aws:s3:::transaction-simulator-frontend-*" # Frontend deployment S3 buckets
-                  - !Sub "arn:aws:s3:::transaction-simulator-frontend-*/*" # Frontend deployment S3 bucket objects
-              - Effect: Allow
-                Action:
-                  - dynamodb:CreateTable
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:DescribeTable
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/terraform-state-lock-table" # Terraform state lock table
-              - Effect: Allow
-                Action:
-                  - lambda:* # Allow Terraform to create/update Lambda functions
-                  - apigateway:* # Allow Terraform to create/update API Gateway
-                  - iam:* # Allow Terraform to create/update IAM roles/policies for Lambda/APIGW
-                  - cloudwatch:PutMetricData # For API Gateway metrics
-                  - logs:CreateLogGroup # For API Gateway logs
-                  - logs:PutLogEvents # For API Gateway logs
-                  - logs:CreateLogStream # For API Gateway logs
-                Resource: "*" # Refine to specific ARNs in production
-
-  # SNS Topic for Manual Approval notifications
-  ManualApprovalSNSTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: TransactionSimulatorApprovalNotification
-      DisplayName: Transaction Simulator Approval Notifications
-
-
   # CodePipeline Definition
   TransactionSimulatorPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: TransactionSimulatorDevSecOpsPipeline
-      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      RoleArn: !ImportValue DevSecOpsCodePipelineServiceRoleArn
       ArtifactStore:
         Type: S3
-        Location: !Ref CodePipelineArtifactBucket # Use the explicitly created artifact bucket
+        Location: !Ref CodePipelineArtifactBucket
 
       Stages:
-        # 1. Source Stage: Fetches code from GitHub
+        # 1. Source Stage
         - Name: Source
           Actions:
             - Name: SourceCode
@@ -337,7 +182,7 @@ Resources:
                 Version: '1'
               Configuration:
                 ConnectionArn: !Ref GitHubConnectionArn
-                FullRepositoryId: !Join ['/', [!Ref AppGitHubOwner, !Ref AppGitHubRepoName]]
+                FullRepositoryId: !Sub "${AppGitHubOwner}/${AppGitHubRepoName}"
                 BranchName: !Ref AppGitHubBranch
               OutputArtifacts:
                 - Name: SourceOutput
@@ -353,7 +198,7 @@ Resources:
                 Provider: CodeBuild
                 Version: '1'
               Configuration:
-                ProjectName: !Ref FrontendBuildProject # Reference the CodeBuild project
+                ProjectName: !Ref FrontendBuildProject
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
@@ -370,14 +215,14 @@ Resources:
                 Provider: CodeBuild
                 Version: '1'
               Configuration:
-                ProjectName: !Ref LambdaPackageProject # Reference the CodeBuild project
+                ProjectName: !Ref LambdaPackageProject
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
                 - Name: LambdaArtifact
               RunOrder: 1
 
-        # 4. Static Analysis Stage (IaC & Code)
+        # 4. Static Analysis Stage
         - Name: Static-Analysis
           Actions:
             - Name: RunStaticAnalysis
@@ -387,11 +232,11 @@ Resources:
                 Provider: CodeBuild
                 Version: '1'
               Configuration:
-                ProjectName: !Ref StaticAnalysisProject # Reference the CodeBuild project
+                ProjectName: !Ref StaticAnalysisProject
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
-                - Name: StaticAnalysisReport # Can collect scan reports
+                - Name: StaticAnalysisReport
               RunOrder: 1
 
         # 5. Terraform Plan Stage
@@ -404,13 +249,13 @@ Resources:
                 Provider: CodeBuild
                 Version: '1'
               Configuration:
-                ProjectName: !Ref TerraformPlanProject # Reference the CodeBuild project
+                ProjectName: !Ref TerraformPlanProject
               InputArtifacts:
-                - Name: SourceOutput # Needed for the Terraform files
-                - Name: FrontendArtifact # Needed for frontend/dist
-                - Name: LambdaArtifact # Needed for lambda.zip
+                - Name: SourceOutput
+                - Name: FrontendArtifact
+                - Name: LambdaArtifact
               OutputArtifacts:
-                - Name: TerraformPlanArtifact # Contains plan.tfplan
+                - Name: TerraformPlanArtifact
               RunOrder: 1
 
         # 6. Manual Approval for Terraform Plan
@@ -423,15 +268,11 @@ Resources:
                 Provider: Manual
                 Version: '1'
               Configuration:
-                CustomData: "Review the Terraform plan (plan.tfplan) to ensure infrastructure changes are as expected before applying. Check the CodeBuild logs from the 'GenerateTerraformPlan' action."
-                # Link to the S3 bucket where plan.tfplan might be inspectable, or just CodeBuild logs
-                ExternalEntityLink: !Sub "https://${CodePipelineArtifactBucket.BucketName}.s3.${AWS::Region}.amazonaws.com/Terraform-Plan/GenerateTerraformPlan/plan.tfplan"
-                NotificationArn: !GetAtt ManualApprovalSNSTopic.Arn
-              InputArtifacts:
-                - Name: TerraformPlanArtifact # Provides context for the approval
+                CustomData: "Review the Terraform plan to ensure infrastructure changes are as expected before applying. Check the CodeBuild logs from the 'GenerateTerraformPlan' action."
+                NotificationArn: !ImportValue TransactionSimulatorApprovalNotificationTopicArn
               RunOrder: 1
 
-        # 7. Terraform Apply Stage (Deploys Infrastructure & Application)
+        # 7. Terraform Apply Stage
         - Name: Terraform-Apply
           Actions:
             - Name: ApplyTerraformChanges
@@ -441,16 +282,14 @@ Resources:
                 Provider: CodeBuild
                 Version: '1'
               Configuration:
-                ProjectName: !Ref TerraformApplyProject # Reference the CodeBuild project
+                ProjectName: !Ref TerraformApplyProject
               InputArtifacts:
-                - Name: TerraformPlanArtifact # Contains the approved plan.tfplan
+                - Name: TerraformPlanArtifact
               OutputArtifacts:
-                - Name: TerraformOutputsArtifact # Contains terraform_outputs.json
+                - Name: TerraformOutputsArtifact
               RunOrder: 1
 
-        # 8. Lambda Canary Deployment Stage (Traffic Shifting)
-        # This stage uses CodeDeploy's specific action type for Lambda deployments.
-        # It relies on the Lambda versions and aliases being managed by Terraform in previous steps.
+        # 8. Lambda Canary Deployment Stage
         - Name: Lambda-Canary-Deployment
           Actions:
             - Name: InitiateLambdaTrafficShift
@@ -460,25 +299,13 @@ Resources:
                 Provider: CodeDeploy
                 Version: '1'
               Configuration:
-                ApplicationName: TransactionSimulatorAPI # Matches the Lambda function name (or API Gateway name)
-                # CodeDeploy needs to know the Lambda function name, its alias, and how to shift traffic.
-                # It will use the latest Lambda version created by Terraform.
-                DeploymentGroupName: TransactionSimulatorLambdaDeploymentGroup # This will be created via CodeDeploy deployment group resource (manual or CF)
-                # DeploymentConfigName: CodeDeployDefault.LambdaAllAtOnce # For full rollout
-                # For Canary:
-                DeploymentConfigName: CodeDeployDefault.LambdaLinear10PercentEvery1Minute # Example Canary
-                # Or for custom: CodeDeployDefault.LambdaCanary10Percent5Minutes
-                # Or CodeDeployDefault.LambdaAllAtOnce for immediate full shift.
-                # AutoRollbackConfiguration:
-                #   Enabled: true
-                #   Events:
-                #     - DEPLOYMENT_FAILURE
-                #     - DEPLOYMENT_STOP_ON_ALARM
-              # Input artifacts are not explicitly required for CodeDeploy Lambda type if versions are managed by Lambda.
-              # CodeDeploy identifies the function and aliases to shift traffic.
+                ApplicationName: !ImportValue TransactionSimulatorCodeDeployApplicationName
+                DeploymentGroupName: !ImportValue TransactionSimulatorCodeDeployDeploymentGroupName
+              InputArtifacts:
+                - Name: TerraformOutputsArtifact
               RunOrder: 1
 
-        # 9. Smoke Tests Stage (Post-Deployment Verification)
+        # 9. Smoke Tests Stage
         - Name: Smoke-Tests
           Actions:
             - Name: RunSmokeTests
@@ -488,17 +315,20 @@ Resources:
                 Provider: CodeBuild
                 Version: '1'
               Configuration:
-                ProjectName: !Ref SmokeTestsProject # Reference the CodeBuild project
+                ProjectName: !Ref SmokeTestsProject
               InputArtifacts:
-                - Name: TerraformOutputsArtifact # Contains terraform_outputs.json with URLs
+                - Name: TerraformOutputsArtifact
               OutputArtifacts:
-                - Name: SmokeTestReport # Can collect test results
+                - Name: SmokeTestReport
               RunOrder: 1
 
 Outputs:
   PipelineURL:
     Description: URL of the CodePipeline
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${TransactionSimulatorPipeline}/view?region=${AWS::Region}"
-  FrontendWebsiteURL:
-    Description: The URL of the deployed frontend website
-    Value: !Select [0, !Split [" ", !GetAtt TerraformApplyProject.PrimarySources[0].SourceIdentifier]]
+  
+  CodePipelineArtifactBucketName:
+    Description: Name of the S3 bucket used for pipeline artifacts
+    Value: !Ref CodePipelineArtifactBucket
+    Export:
+      Name: TransactionSimulatorPipelineArtifactBucketName
