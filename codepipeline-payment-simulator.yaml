@@ -17,7 +17,7 @@ Parameters:
     Description: Git branch to use for the application code (e.g., main)
   GitHubConnectionArn:
     Type: String
-    Default: arn:aws:codeconnections:us-east-1:864981715490:connection/743c9fe4-1a25-46e1-b068-daf51b807075
+    Default: arn:aws:codeconnections:us-east-1:864981715490:connection/0235a554-6002-43b2-b35a-bd2c262a07e5
     Description: The ARN of the AWS CodeStar Connections connection to GitHub.
 Resources:
   # S3 Bucket for CodePipeline Artifacts

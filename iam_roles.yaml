@@ -1,149 +1,177 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: IAM Roles for DevSecOps Pipeline using CodePipeline, CodeBuild, CodeDeploy, and EC2. (No 'V2' Suffix)
+Description: IAM Roles for DevSecOps Pipeline. (YAML Syntax Corrected - Attempt 2)
 
 Resources:
   # IAM Role for AWS CodePipeline
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsCodePipelineServiceRole 
+      RoleName: DevSecOpsCodePipelineServiceRole # Or TransactionSimulatorCodePipelineRole, if you prefer
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
+          - Effect: "Allow"
             Principal:
-              Service: codepipeline.amazonaws.com
-            Action: sts:AssumeRole
+              Service: "codepipeline.amazonaws.com"
+            Action: "sts:AssumeRole"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-        - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
+        - arn:aws:iam::aws:policy/AWSSystemsManagerReadOnlyAccess # To read SSM parameters for CodeBuild
       Policies:
         - PolicyName: CodePipelineServicePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: Allow
+              - Effect: "Allow"
+                Action: "codestar-connections:UseConnection"
+                Resource: "arn:aws:codeconnections:us-east-1:864981715490:connection/743c9fe4-1a25-46e1-b068-daf51b807075"
+              - Effect: "Allow"
                 Action:
-                  - codestar-connections:UseConnection
-                Resource: arn:aws:codeconnections:us-east-1:864981715490:connection/743c9fe4-1a25-46e1-b068-daf51b807075
-              - Effect: Allow
+                  - "codebuild:StartBuild"
+                  - "codebuild:BatchGetBuilds"
+                  - "codebuild:StopBuild"
+                  - "codebuild:ListBuildsForProject"
+                Resource: "*"
+              - Effect: "Allow"
+                Action: "sns:Publish"
+                Resource: !GetAtt ManualApprovalSNSTopic.Arn
+              - Effect: "Allow"
                 Action:
-                  - codebuild:StartBuild
-                  - codebuild:BatchGetBuilds
-                  - codebuild:StopBuild
-                  - codebuild:ListBuildsForProject
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  - "s3:ListBucketVersion"
+                  - "s3:GetBucketVersioning"
+                  - "s3:ListBucket"
+                  - "s3:PutObjectAcl"
                 Resource:
-                  - arn:aws:codebuild:us-east-1:864981715490:project/DevSecOpsSecurityScanProject
-                  - arn:aws:codebuild:us-east-1:864981715490:project/DevSecOpsNodeJsAppBuildProject
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: arn:aws:sns:us-east-1:864981715490:DevSecOpsApprovalNotification 
-      Path: /
+                  - !Sub "arn:${AWS::Partition}:s3:::transaction-simulator-pipeline-artifacts-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:${AWS::Partition}:s3:::transaction-simulator-pipeline-artifacts-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: "Allow"
+                Action: "iam:PassRole"
+                Resource: !GetAtt CodeDeployServiceRole.Arn
+      Path: "/"
 
   # IAM Role for AWS CodeBuild
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsCodeBuildServiceRole 
+      RoleName: TransactionSimulatorCodeBuildRole
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Action: sts:AssumeRole
+        Version: "2012-10-17"
+        Statement: # Corrected: Removed array brackets, using standard YAML list syntax
+          - Effect: "Allow" # Corrected from = to :
+            Principal: # Corrected from = to :
+              Service: "codebuild.amazonaws.com" # Corrected from = to :
+            Action: "sts:AssumeRole" # Corrected from = to :
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-      Path: /
+        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess # Broad access for demo
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess # For CodeBuild artifacts
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess # For CodeBuild logs
+        - arn:aws:iam::aws:policy/AWSSystemsManagerReadOnlyAccess # To access SSM parameters
+      Policies:
+        - PolicyName: CodeBuildTerraformPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: # Corrected: Removed array brackets, using standard YAML list syntax
+              - Effect: "Allow"
+                Action:
+                  - "s3:ListBucket"
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::transaction-simulator-pipeline-artifacts-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:${AWS::Partition}:s3:::transaction-simulator-pipeline-artifacts-${AWS::Region}-${AWS::AccountId}/*"
+                  - "arn:aws:s3:::transaction-simulator-terraform-tfstate" # Terraform state bucket
+                  - "arn:aws:s3:::transaction-simulator-terraform-tfstate/*" # Terraform state bucket objects
+                  - "arn:aws:s3:::transaction-simulator-frontend-*"
+                  - "arn:aws:s3:::transaction-simulator-frontend-*/*"
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:CreateTable"
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:UpdateItem"
+                  - "dynamodb:DeleteItem"
+                  - "dynamodb:DescribeTable"
+                Resource: "arn:aws:dynamodb:us-east-1:864981715490:table/terraform-state-lock-table"
+              - Effect: "Allow"
+                Action:
+                  - "lambda:*"
+                  - "apigateway:*"
+                  - "iam:*"
+                  - "cloudwatch:PutMetricData"
+                  - "logs:CreateLogGroup"
+                  - "logs:PutLogEvents"
+                  - "logs:CreateLogStream"
+                Resource: "*"
+      Path: "/"
 
-  # IAM Role for AWS CodeDeploy
+  # IAM Role for CodeDeploy Lambda Deployment
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: DevSecOpsCodeDeployServiceRole 
+      RoleName: TransactionSimulatorCodeDeployLambdaRole
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
+        Version: "2012-10-17"
+        Statement: # Corrected: Removed array brackets, using standard YAML list syntax
+          - Effect: "Allow"
             Principal:
-              Service: codedeploy.amazonaws.com
-            Action: sts:AssumeRole
+              Service: "codedeploy.amazonaws.com"
+            Action: "sts:AssumeRole"
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
-        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      Path: /
-
-  # IAM Role for EC2 Instances (for CodeDeploy Agent)
-  EC2InstanceProfileRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: DevSecOpsEC2CodeDeployRole 
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-      Path: /
-
-  # IAM Instance Profile for EC2 Instances
-  EC2InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      InstanceProfileName: DevSecOpsEC2CodeDeployProfile 
-      Roles:
-        - !Ref EC2InstanceProfileRole
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForLambda
+        - arn:aws:iam::aws:policy/AWSLambda_FullAccess
+      Policies:
+        - PolicyName: CodeDeployLambdaInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: # Corrected: Removed array brackets, using standard YAML list syntax
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                  - "lambda:GetFunction"
+                  - "lambda:GetFunctionConfiguration"
+                  - "lambda:UpdateFunctionConfiguration"
+                  - "lambda:ListVersionsByFunction"
+                  - "lambda:GetAlias"
+                  - "lambda:UpdateAlias"
+                  - "lambda:CreateAlias"
+                Resource:
+                  - "arn:aws:lambda:us-east-1:864981715490:function:TransactionSimulatorAPI"
+                  - "arn:aws:lambda:us-east-1:864981715490:function:TransactionSimulatorAPI:*"
+                  - "arn:aws:lambda:us-east-1:864981715490:function:TransactionSimulatorAPI:LIVE"
+                  - "arn:aws:lambda:us-east-1:864981715490:function:TransactionSimulatorAPI:BETA"
+      Path: "/"
 
   # SNS Topic for Manual Approval notifications
-  DevSecOpsApprovalNotificationTopic:
+  ManualApprovalSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: DevSecOpsApprovalNotification 
-      DisplayName: DevSecOps Approval Notifications 
+      TopicName: TransactionSimulatorApprovalNotification
+      DisplayName: Transaction Simulator Approval Notifications
 
 Outputs:
   CodePipelineServiceRoleArn:
     Description: ARN of the CodePipeline Service Role
     Value: !GetAtt CodePipelineServiceRole.Arn
     Export:
-      Name: DevSecOpsCodePipelineServiceRoleArn 
+      Name: DevSecOpsCodePipelineServiceRoleArn
 
   CodeBuildServiceRoleArn:
     Description: ARN of the CodeBuild Service Role
     Value: !GetAtt CodeBuildServiceRole.Arn
     Export:
-      Name: DevSecOpsCodeBuildServiceRoleArn
+      Name: TransactionSimulatorCodeBuildRoleArn
 
   CodeDeployServiceRoleArn:
     Description: ARN of the CodeDeploy Service Role
     Value: !GetAtt CodeDeployServiceRole.Arn
     Export:
-      Name: DevSecOpsCodeDeployServiceRoleArn
-
-  EC2InstanceProfileArn:
-    Description: ARN of the EC2 Instance Profile for CodeDeploy agent
-    Value: !GetAtt EC2InstanceProfile.Arn
-    Export:
-      Name: DevSecOpsEC2CodeDeployProfileArn
-
-  EC2InstanceProfileName:
-    Description: Name of the EC2 Instance Profile for CodeDeploy agent
-    Value: !Ref EC2InstanceProfile
-    Export:
-      Name: DevSecOpsEC2CodeDeployProfileName
+      Name: TransactionSimulatorCodeDeployLambdaRoleArn
 
   DevSecOpsApprovalNotificationTopicArn:
     Description: ARN of the SNS Topic for approval notifications
-    Value: !Ref DevSecOpsApprovalNotificationTopic
+    Value: !GetAtt ManualApprovalSNSTopic.Arn
     Export:
-      Name: DevSecOpsApprovalNotificationTopicArn
+      Name: TransactionSimulatorApprovalNotificationTopicArn
