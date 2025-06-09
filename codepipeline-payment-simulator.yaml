@@ -252,8 +252,6 @@ Resources:
                 ProjectName: !Ref TerraformPlanProject
               InputArtifacts:
                 - Name: SourceOutput
-                - Name: FrontendArtifact
-                - Name: LambdaArtifact
               OutputArtifacts:
                 - Name: TerraformPlanArtifact
               RunOrder: 1
